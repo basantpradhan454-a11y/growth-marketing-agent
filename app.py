@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import os
-import json
 from groq import Groq
 
 st.set_page_config(page_title="Growth Marketing AI Agent", page_icon="🚀", layout="wide")
@@ -10,34 +9,38 @@ st.set_page_config(page_title="Growth Marketing AI Agent", page_icon="🚀", lay
 st.title("🚀 Growth Marketing AI Agent")
 st.markdown("**Enter any website URL and get a complete 4-phase growth marketing strategy instantly!**")
 
-# API Key input
-groq_key = st.sidebar.text_input("🔑 Groq API Key", type="password", help="Get free key at console.groq.com")
-st.sidebar.markdown("[Get free Groq API key →](https://console.groq.com)")
+# Auto-load Groq API key from secrets or environment
+groq_key = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
+
+if not groq_key:
+    groq_key = st.sidebar.text_input("🔑 Groq API Key", type="password", help="Get free key at console.groq.com")
+    st.sidebar.markdown("[Get free Groq API key →](https://console.groq.com)")
+else:
+    st.sidebar.success("✅ Groq API Connected!")
 
 def scrape_website(url):
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         resp = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(resp.text, "html.parser")
-        
+
         title = soup.title.string if soup.title else ""
         meta_desc = ""
         meta = soup.find("meta", attrs={"name": "description"})
         if meta:
             meta_desc = meta.get("content", "")
-        
-        # Get main text content
+
         for tag in soup(["script", "style", "nav", "footer"]):
             tag.decompose()
         text = " ".join(soup.get_text().split())[:3000]
-        
+
         return {"title": title, "meta": meta_desc, "content": text, "url": url}
     except Exception as e:
         return {"error": str(e)}
 
 def generate_report(scraped_data, api_key):
     client = Groq(api_key=api_key)
-    
+
     prompt = f"""You are a world-class growth marketing strategist. Analyze this website and create a comprehensive 4-phase growth marketing report.
 
 Website URL: {scraped_data['url']}
@@ -57,7 +60,7 @@ Generate a detailed report with these 4 phases:
 ## ✍️ PHASE 2: PREMIUM AD COPY
 Write 3 high-converting ad copies:
 - Ad 1: Problem-Solver Ad
-- Ad 2: Feature-Highlight Ad  
+- Ad 2: Feature-Highlight Ad
 - Ad 3: Short & Punchy Ad
 
 ## 📱 PHASE 3: MULTI-CHANNEL CONTENT
@@ -93,21 +96,20 @@ if st.button("🚀 Generate Growth Marketing Report", type="primary", use_contai
     else:
         with st.spinner("🔍 Scraping website..."):
             data = scrape_website(url)
-        
+
         if "error" in data:
             st.error(f"Could not scrape website: {data['error']}")
         else:
             st.success(f"✅ Scraped: **{data['title']}**")
-            
-            with st.spinner("🤖 AI is generating your 4-phase strategy (30-60 seconds)..."):
+
+            with st.spinner("🤖 AI generating your 4-phase strategy (30-60 seconds)..."):
                 try:
                     report = generate_report(data, groq_key)
-                    
+
                     st.markdown("---")
                     st.markdown("## 📋 Your Growth Marketing Report")
                     st.markdown(report)
-                    
-                    # Download button
+
                     st.download_button(
                         label="📥 Download Report",
                         data=report,
